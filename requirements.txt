@@ -1,6 +1,10 @@
 requests
 
--e sub/epyqlib
+# TODO: shouldn't be deploy here for all cases
+-e sub/epyqlib[deploy]
+
+# TODO: this shouldn't be here either...
+https://github.com/pyinstaller/pyinstaller/archive/964547cd92cabe28150d52c2ca809de74a5ddbaa.zip
 
 -e git+https://github.com/altendky/python-can@d9e3190486af0000256820400516fe0a0423d0bb#egg=python-can
 -e git+https://github.com/ebroecker/canmatrix@336a8937c3fbdf4ba0d26cf4275aca4ee5486d31#egg=canmatrix
@@ -10,3 +14,4 @@ twisted==17.1.0
 pypiwin32==220; sys_platform == 'win32'
 -e git+https://github.com/eliben/pyelftools@2300c1ffbe0f12f8bcd8f68ff1b1c6bdd0258c73#egg=pyelftools
 attrs==16.3.0
+natsort==5.0.3

@@ -30,6 +30,7 @@ import epyq
 import epyqlib.canneo
 import epyqlib.csvwindow
 from epyqlib.svgwidget import SvgWidget
+import epyqlib.tests.common
 import epyqlib.txrx
 import epyqlib.utils.qt
 import epyqlib.utils.canlog
@@ -287,7 +288,13 @@ def main(args=None):
 
     # TODO: CAMPid 9757656124812312388543272342377
     app = QApplication(sys.argv)
-    sys.excepthook = epyqlib.utils.qt.exception_message_box
+    epyqlib.utils.qt.exception_message_box_register_versions(
+        version_tag=epyq.__version_tag__,
+        build_tag=epyq.__build_tag__,
+    )
+    sys.excepthook = functools.partial(
+        epyqlib.utils.qt.exception_message_box,
+    )
     QtCore.qInstallMessageHandler(epyqlib.utils.qt.message_handler)
     app.setStyleSheet('QMessageBox {{ messagebox-text-interaction-flags: {}; }}'
                       .format(Qt.TextBrowserInteraction))
@@ -299,6 +306,7 @@ def main(args=None):
     os_signal_timer.start(200)
     os_signal_timer.timeout.connect(lambda: None)
 
+    # TODO: CAMPid 03127876954165421679215396954697
     # https://github.com/kivy/kivy/issues/4182#issuecomment-253159955
     # fix for pyinstaller packages app to avoid ReactorAlreadyInstalledError
     if 'twisted.internet.reactor' in sys.modules:
@@ -307,15 +315,19 @@ def main(args=None):
     import qt5reactor
     qt5reactor.install()
 
+    import argparse
+
+    ui_default = 'main.ui'
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ui', default=ui_default)
+    parser.add_argument('--verbose', '-v', action='count', default=0)
+    parser.add_argument('--quit-after', type=float, default=None)
+    parser.add_argument('--load-offline', default=None)
     if args is None:
-        import argparse
-
-        ui_default = 'main.ui'
-
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--ui', default=ui_default)
-        parser.add_argument('--verbose', '-v', action='count', default=0)
         args = parser.parse_args()
+    else:
+        args = parser.parse_args(args)
 
     can_logger_modules = ('can', 'can.socketcan.native')
 
@@ -360,15 +372,37 @@ def main(args=None):
         QtGui.QFontDatabase.addApplicationFont(font_path)
 
     window = Window(ui_file=args.ui)
-
-    sys.excepthook = functools.partial(
-        epyqlib.utils.qt.exception_message_box,
-        version_tag=epyq.__version_tag__,
-        build_tag=epyq.__build_tag__,
-        parent=window
-    )
+    epyqlib.utils.qt.exception_message_box_register_parent(parent=window)
 
     window.show()
+
+    if args.quit_after is not None:
+        QtCore.QTimer.singleShot(args.quit_after * 1000, app.quit)
+
+    if args.load_offline is not None:
+        def load_offline():
+            bus_node, = [
+                node for node in window.ui.device_tree.model.root.children
+                if node.fields.name == 'Offline'
+            ]
+
+            split = args.load_offline.split('_', maxsplit=1)
+            if split[0] == 'test':
+                path = epyqlib.tests.common.devices[split[1]]
+            else:
+                path = args.load_offline
+
+            window.ui.device_tree.add_device(
+                bus=bus_node,
+                device=epyqlib.device.Device(
+                    file=path,
+                    bus=bus_node.bus,
+                    node_id=247,
+                ),
+            )
+
+        QtCore.QTimer.singleShot(0.5 * 1000, load_offline)
+
 
     from twisted.internet import reactor
     reactor.runReturn()
@@ -380,7 +414,9 @@ def main(args=None):
     reactor.stop()
     logging.debug('Reactor stopped')
 
-    return result
+    # TODO: this should be sys.exit() but something keeps the process
+    #       from terminating.  Ref T679  Ref T711
+    os._exit(result)
 
 
 if __name__ == '__main__':
